@@ -5,16 +5,19 @@ This project is an **interactive single-page application (SPA)** that explains P
 It is built with **HTML, TailwindCSS, JavaScript, and Chart.js**.
 
 ## 🌐 Live Demo
-You can deploy this easily using:
 - [Live](https://edward-012.github.io/POSIX-thread/)  
  
 
 ## 📂 Project Structure
 .
 ├── index.html # Main interactive report
+
 ├── README.md # Documentation
+
 ├── LICENSE # License for usage
+
 └── .gitignore # Ignored files for Git
+
 
 markdown
 Copy code
@@ -44,3 +47,4 @@ Copy code
 python -m http.server 8080
 
 Visit http://localhost:8080
+
