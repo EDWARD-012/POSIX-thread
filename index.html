@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Report on POSIX Threads (pthreads)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Slate Gray & Sky Blue -->
+    <!-- Application Structure Plan: A two-column SPA with a fixed left sidebar for navigation and a dynamic main content area. This structure provides persistent, clear navigation, allowing users to easily jump between complex topics like thread creation, synchronization, and lifecycle without losing context or needing to scroll extensively. It is superior to a linear report as it facilitates non-linear learning and quick reference. The user flow is driven by sidebar clicks, which use JavaScript to dynamically display the relevant content section, featuring explanations, interactive diagrams, and live code examples. -->
+    <!-- Visualization & Content Choices: Report Info: Core pthread concepts -> Goal: Inform, Organize, Compare, Demonstrate -> Viz/Presentation Method: Interactive code blocks with copy-to-clipboard functionality (HTML/JS), a side-by-side simulation demonstrating race conditions vs. mutex protection (HTML/CSS/JS), a clickable thread lifecycle diagram (HTML/CSS/JS), and a performance comparison bar chart (Chart.js/Canvas). Justification: These interactive elements make abstract concurrency concepts tangible and easier to grasp than static text alone. The simulation provides a powerful visual for understanding synchronization issues, the diagram clarifies state transitions, and the chart offers a quick, data-driven reason for using multithreading. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .code-block {
+            font-family: 'Fira Code', monospace;
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block .copy-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: #334155;
+            color: #94a3b8;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .code-block .copy-btn:hover {
+            background-color: #475569;
+            color: #cbd5e1;
+        }
+        .nav-link {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .nav-link.active {
+            background-color: #e0f2fe;
+            color: #0c4a6e;
+            font-weight: 600;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .lifecycle-state {
+            transition: all 0.3s ease-in-out;
+            border: 2px solid transparent;
+        }
+        .lifecycle-state.highlight {
+            border-color: #0ea5e9;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .param-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .param-table thead td {
+            font-weight: 600;
+            background-color: #f1f5f9;
+        }
+        .sim-thread {
+            transition: all 0.5s ease-in-out;
+        }
+        .chart-container { 
+            position: relative; 
+            width: 100%; 
+            max-width: 600px; 
+            margin-left: auto; 
+            margin-right: auto; 
+            height: 350px; 
+            max-height: 400px;
+        }
+        @media (min-width: 768px) { .chart-container { height: 400px; } }
+    </style>
+</head>
+<body class="text-slate-800">
+    <div class="flex min-h-screen">
+        <aside class="w-64 bg-white border-r border-slate-200 p-6 fixed h-full">
+            <h1 class="text-2xl font-bold text-sky-800 mb-8">Pthreads Report</h1>
+            <nav id="navigation" class="space-y-2">
+                <a data-target="introduction" class="nav-link block p-3 rounded-lg hover:bg-slate-100">Introduction</a>
+                <a data-target="lifecycle" class="nav-link block p-3 rounded-lg hover:bg-slate-100">Thread Lifecycle</a>
+                <a data-target="creation" class="nav-link block p-3 rounded-lg hover:bg-slate-100">Creation & Termination</a>
+                <a data-target="synchronization" class="nav-link block p-3 rounded-lg hover:bg-slate-100">Synchronization</a>
+                <a data-target="performance" class="nav-link block p-3 rounded-lg hover:bg-slate-100">Performance Insight</a>
+                <a data-target="examples" class="nav-link block p-3 rounded-lg hover:bg-slate-100">Complete Examples</a>
+            </nav>
+        </aside>
+
+        <main class="ml-64 flex-1 p-8 md:p-12">
+            
+            <div id="introduction" class="content-section">
+                <h2 class="text-4xl font-bold text-slate-900 mb-4">Introduction to POSIX Threads</h2>
+                <p class="text-lg text-slate-600 mb-6 max-w-4xl">This interactive report provides a comprehensive overview of POSIX Threads (pthreads), a standard programming interface for creating and managing threads. Pthreads allow a program to perform multiple tasks concurrently, which can significantly improve performance on multi-core systems. We will explore the thread lifecycle, core functions, synchronization mechanisms, and provide practical C code examples.</p>
+                
+                <div class="grid md:grid-cols-2 gap-6 mt-10">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200">
+                        <h3 class="text-xl font-semibold text-sky-700 mb-3">What are Pthreads?</h3>
+                        <p class="text-slate-600">Pthreads are a set of C language programming types and function calls defined by the POSIX (Portable Operating System Interface) standard. They provide a standardized way for developers to create and manage threads, making concurrent programming more portable across different UNIX-like operating systems, including Linux, macOS, and others.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200">
+                        <h3 class="text-xl font-semibold text-sky-700 mb-3">Why Use Pthreads?</h3>
+                        <p class="text-slate-600">The primary advantage of using pthreads is to achieve parallelism. By dividing a task among multiple threads that can run simultaneously on different CPU cores, applications can complete work faster. This is crucial for computationally intensive tasks, responsive user interfaces, and efficient server applications handling multiple clients.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="lifecycle" class="content-section">
+                <h2 class="text-4xl font-bold text-slate-900 mb-4">The Thread Lifecycle</h2>
+                <p class="text-lg text-slate-600 mb-8 max-w-4xl">A thread progresses through several states from its creation to its termination. Understanding this lifecycle is fundamental to managing threads effectively in any application. Click through the stages below to see a visual representation of the process and learn about each state.</p>
+                <div class="bg-white p-8 rounded-xl border border-slate-200">
+                    <div class="flex items-center justify-around flex-wrap gap-4 text-center text-sm font-semibold">
+                        <div id="state-new" class="lifecycle-state bg-slate-100 p-4 rounded-lg w-32">New</div>
+                        <div class="text-slate-400 font-mono">&rarr;</div>
+                        <div id="state-runnable" class="lifecycle-state bg-slate-100 p-4 rounded-lg w-32">Runnable</div>
+                        <div class="text-slate-400 font-mono">&rarr;</div>
+                        <div id="state-running" class="lifecycle-state bg-slate-100 p-4 rounded-lg w-32">Running</div>
+                        <div class="text-slate-400 font-mono">&rarr;</div>
+                        <div id="state-blocked" class="lifecycle-state bg-slate-100 p-4 rounded-lg w-32">Blocked</div>
+                        <div class="text-slate-400 font-mono">&rarr;</div>
+                        <div id="state-terminated" class="lifecycle-state bg-slate-100 p-4 rounded-lg w-32">Terminated</div>
+                    </div>
+                    <div class="mt-8 p-6 bg-sky-50 rounded-lg min-h-[120px]">
+                        <h4 id="lifecycle-title" class="text-xl font-bold text-sky-800 mb-2">New State</h4>
+                        <p id="lifecycle-desc" class="text-sky-900">A thread is in the "New" state after it has been created but before it has been started. System resources have been allocated, but the thread is not yet eligible to be run by the scheduler.</p>
+                    </div>
+                     <div class="flex justify-center mt-6 gap-4">
+                        <button id="prev-state-btn" class="bg-slate-300 text-slate-700 font-semibold py-2 px-5 rounded-lg hover:bg-slate-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                        <button id="next-state-btn" class="bg-sky-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-sky-700 transition-colors">Next</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="creation" class="content-section">
+                <h2 class="text-4xl font-bold text-slate-900 mb-4">Thread Creation & Termination</h2>
+                <p class="text-lg text-slate-600 mb-8 max-w-4xl">The core of the pthreads library revolves around creating threads to execute functions concurrently and then managing their termination to safely retrieve results and release resources. The main functions for this are `pthread_create()`, `pthread_join()`, and `pthread_exit()`.</p>
+                
+                <div class="bg-white p-8 rounded-xl border border-slate-200">
+                    <h3 class="text-2xl font-semibold text-sky-800 mb-4">`pthread_create()` - Creating a Thread</h3>
+                    <p class="mb-6 text-slate-600">This function is used to create a new thread. It requires four arguments to specify the thread's attributes, the function it will execute, and any arguments to that function.</p>
+                    <div class="code-block mb-6">
+                        <pre>int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                       void *(*start_routine) (void *), void *arg);</pre>
+                    </div>
+                     <table class="w-full text-left border-collapse param-table">
+                        <thead>
+                            <tr>
+                                <td class="w-1/4">Parameter</td>
+                                <td>Description</td>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="font-mono">thread</td>
+                                <td>A pointer to a `pthread_t` variable that will hold the ID of the new thread.</td>
+                            </tr>
+                            <tr>
+                                <td class="font-mono">attr</td>
+                                <td>A pointer to thread attributes. `NULL` can be passed to use default attributes.</td>
+                            </tr>
+                            <tr>
+                                <td class="font-mono">start_routine</td>
+                                <td>The function that the new thread will execute. It must take a `void*` argument and return a `void*`.</td>
+                            </tr>
+                            <tr>
+                                <td class="font-mono">arg</td>
+                                <td>The argument to be passed to the `start_routine` function.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6 mt-6">
+                    <div class="bg-white p-8 rounded-xl border border-slate-200">
+                        <h3 class="text-2xl font-semibold text-sky-800 mb-4">`pthread_join()`</h3>
+                        <p class="mb-6 text-slate-600">This function blocks the calling thread until the specified thread terminates. It is the primary mechanism for a parent thread to wait for its child threads to complete their work and to retrieve their return values.</p>
+                        <div class="code-block">
+                            <pre>int pthread_join(pthread_t thread, void **retval);</pre>
+                        </div>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl border border-slate-200">
+                        <h3 class="text-2xl font-semibold text-sky-800 mb-4">`pthread_exit()`</h3>
+                        <p class="mb-6 text-slate-600">This function is used by a thread to terminate itself. It can pass a return value back to another thread that joins it. If the `main` function finishes before all threads, the entire process might terminate, so `pthread_exit()` can be useful in `main` as well.</p>
+                        <div class="code-block">
+                            <pre>void pthread_exit(void *retval);</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="synchronization" class="content-section">
+                <h2 class="text-4xl font-bold text-slate-900 mb-4">Synchronization with Mutexes</h2>
+                <p class="text-lg text-slate-600 mb-6 max-w-4xl">When multiple threads access and modify shared data concurrently, a "race condition" can occur, leading to unpredictable and incorrect results. Pthreads provide synchronization primitives, like mutexes (mutual exclusions), to protect shared resources and ensure that only one thread can access a critical section of code at a time.</p>
+                <p class="text-lg text-slate-600 mb-8 max-w-4xl">The following simulation demonstrates this problem. We have two threads that both try to increment a shared counter 100,000 times. The final value should be 200,000. Click the buttons to see the outcome with and without a mutex protecting the counter.</p>
+
+                <div class="bg-white p-8 rounded-xl border border-slate-200">
+                    <div class="text-center mb-6">
+                        <h3 class="text-2xl font-semibold text-slate-800">Shared Counter Simulation</h3>
+                        <p class="text-slate-600">Current Value:</p>
+                        <p id="counter-value" class="text-5xl font-bold font-mono my-3">0</p>
+                        <p id="sim-status" class="text-sm text-slate-500 min-h-[20px]">&nbsp;</p>
+                    </div>
+
+                    <div class="flex items-center justify-center gap-8 mb-8">
+                        <div class="text-center">
+                            <div class="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center border-4 border-teal-200 sim-thread" id="thread1-sim">
+                                <span class="text-lg font-bold text-teal-800">Thread 1</span>
+                            </div>
+                            <p id="thread1-lock" class="text-xs font-mono mt-2 min-h-[16px]">&nbsp;</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 bg-slate-200 rounded-md flex items-center justify-center" id="mutex-lock-sim">
+                                <span class="font-mono text-xs text-slate-600">Mutex</span>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center border-4 border-amber-200 sim-thread" id="thread2-sim">
+                                 <span class="text-lg font-bold text-amber-800">Thread 2</span>
+                            </div>
+                             <p id="thread2-lock" class="text-xs font-mono mt-2 min-h-[16px]">&nbsp;</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center gap-4">
+                        <button id="run-no-mutex" class="bg-red-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-red-700 transition-colors">Run without Mutex (Unsafe)</button>
+                        <button id="run-with-mutex" class="bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors">Run with Mutex (Safe)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="performance" class="content-section">
+                 <h2 class="text-4xl font-bold text-slate-900 mb-4">Performance Insight</h2>
+                <p class="text-lg text-slate-600 mb-8 max-w-4xl">The main reason to use threads is to improve performance through parallelism. This is most effective for tasks that are "parallelizable," meaning they can be broken down into independent sub-tasks that can be executed concurrently. A common example is processing large datasets. The chart below shows a hypothetical performance comparison for summing all elements in a very large array using a single thread versus four threads.</p>
+
+                <div class="bg-white p-8 rounded-xl border border-slate-200">
+                    <h3 class="text-2xl font-semibold text-center text-slate-800 mb-6">Task Completion Time: Single vs. Multi-Threaded</h3>
+                    <div class="chart-container">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                    <p class="text-center text-sm text-slate-500 mt-4">Note: Actual performance gain depends on the task, hardware, and overhead of thread management.</p>
+                </div>
+            </div>
+
+            <div id="examples" class="content-section">
+                <h2 class="text-4xl font-bold text-slate-900 mb-4">Complete C Language Examples</h2>
+                <p class="text-lg text-slate-600 mb-8 max-w-4xl">Here are two complete, runnable C programs. The first is a basic example of creating a thread and waiting for it. The second demonstrates the use of a mutex to safely update a shared variable. Remember to compile these with the `-pthread` flag, e.g., `gcc your_program.c -o your_program -pthread`.</p>
+                
+                <div class="bg-white p-8 rounded-xl border border-slate-200 mb-6">
+                    <h3 class="text-2xl font-semibold text-sky-800 mb-4">Example 1: Basic Thread Creation</h3>
+                    <p class="text-slate-600 mb-6">This program creates a single new thread that executes the `myThreadFunction`. The main thread waits for the new thread to finish using `pthread_join` and then prints its return message.</p>
+                    <div class="code-block">
+                        <button class="copy-btn">Copy</button>
+                        <pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;pthread.h&gt;
+
+void *myThreadFunction(void *vargp) {
+    printf("Printing from the new thread!\n");
+    return (void*)"Hello from thread!";
+}
+   
+int main() {
+    pthread_t thread_id;
+    void *thread_return_value;
+
+    printf("Before thread creation.\n");
+    pthread_create(&thread_id, NULL, myThreadFunction, NULL);
+    
+    // Wait for the thread to finish
+    pthread_join(thread_id, &thread_return_value);
+    
+    printf("After thread has finished.\n");
+    printf("Thread returned: %s\n", (char*)thread_return_value);
+    
+    exit(0);
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-xl border border-slate-200">
+                    <h3 class="text-2xl font-semibold text-sky-800 mb-4">Example 2: Synchronization with a Mutex</h3>
+                    <p class="text-slate-600 mb-6">This program creates two threads that both increment a global counter. A mutex is used to prevent race conditions, ensuring the final count is correct.</p>
+                    <div class="code-block">
+                        <button class="copy-btn">Copy</button>
+                        <pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;pthread.h&gt;
+
+int counter = 0;
+pthread_mutex_t lock;
+
+void* count_up(void *arg) {
+    for (int i = 0; i &lt; 100000; i++) {
+        pthread_mutex_lock(&lock);
+        counter++;
+        pthread_mutex_unlock(&lock);
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t t1, t2;
+
+    if (pthread_mutex_init(&lock, NULL) != 0) {
+        printf("\n Mutex init has failed\n");
+        return 1;
+    }
+
+    pthread_create(&t1, NULL, count_up, NULL);
+    pthread_create(&t2, NULL, count_up, NULL);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    
+    pthread_mutex_destroy(&lock);
+
+    printf("Final counter value: %d\n", counter);
+
+    return 0;
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const navigationLinks = document.querySelectorAll('#navigation .nav-link');
+    const contentSections = document.querySelectorAll('.content-section');
+
+    function showSection(targetId) {
+        contentSections.forEach(section => {
+            section.classList.remove('active');
+        });
+        document.getElementById(targetId).classList.add('active');
+
+        navigationLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.dataset.target === targetId) {
+                link.classList.add('active');
+            }
+        });
+    }
+
+    navigationLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            showSection(link.dataset.target);
+        });
+    });
+
+    showSection('introduction');
+
+    const copyButtons = document.querySelectorAll('.copy-btn');
+    copyButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const code = button.nextElementSibling.querySelector('code').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            });
+        });
+    });
+
+    const lifecycleStates = [
+        { id: 'new', title: 'New State', desc: 'A thread is in the "New" state after it has been created but before it has been started. System resources have been allocated, but the thread is not yet eligible to be run by the scheduler.' },
+        { id: 'runnable', title: 'Runnable State', desc: 'Once the thread is started (e.g., via pthread_create), it enters the "Runnable" state. It is now waiting in a queue for the OS scheduler to assign it to a CPU core to run.' },
+        { id: 'running', title: 'Running State', desc: 'The scheduler has selected the thread from the runnable queue, and its instructions are now being executed by a CPU core. It will continue to run until it is preempted, it blocks, or it terminates.' },
+        { id: 'blocked', title: 'Blocked State', desc: 'A thread enters the "Blocked" state when it must wait for an event, such as I/O completion or acquiring a locked mutex. It consumes no CPU time while blocked and will return to the "Runnable" state when the event occurs.' },
+        { id: 'terminated', title: 'Terminated State', desc: 'A thread enters the "Terminated" state when it finishes its execution, either by returning from its start routine or by explicitly calling `pthread_exit()`. Its resources can then be reclaimed.' }
+    ];
+    let currentStateIndex = 0;
+    const lifecycleTitle = document.getElementById('lifecycle-title');
+    const lifecycleDesc = document.getElementById('lifecycle-desc');
+    const nextBtn = document.getElementById('next-state-btn');
+    const prevBtn = document.getElementById('prev-state-btn');
+
+    function updateLifecycleState() {
+        document.querySelectorAll('.lifecycle-state').forEach(el => el.classList.remove('highlight'));
+        
+        const stateInfo = lifecycleStates[currentStateIndex];
+        document.getElementById('state-' + stateInfo.id).classList.add('highlight');
+        lifecycleTitle.textContent = stateInfo.title;
+        lifecycleDesc.textContent = stateInfo.desc;
+
+        prevBtn.disabled = currentStateIndex === 0;
+        nextBtn.disabled = currentStateIndex === lifecycleStates.length - 1;
+    }
+    
+    nextBtn.addEventListener('click', () => {
+        if (currentStateIndex < lifecycleStates.length - 1) {
+            currentStateIndex++;
+            updateLifecycleState();
+        }
+    });
+
+    prevBtn.addEventListener('click', () => {
+        if (currentStateIndex > 0) {
+            currentStateIndex--;
+            updateLifecycleState();
+        }
+    });
+    
+    updateLifecycleState();
+
+    const runNoMutexBtn = document.getElementById('run-no-mutex');
+    const runWithMutexBtn = document.getElementById('run-with-mutex');
+    const counterValueEl = document.getElementById('counter-value');
+    const simStatusEl = document.getElementById('sim-status');
+    const thread1Sim = document.getElementById('thread1-sim');
+    const thread2Sim = document.getElementById('thread2-sim');
+    const mutexLockSim = document.getElementById('mutex-lock-sim');
+    const thread1Lock = document.getElementById('thread1-lock');
+    const thread2Lock = document.getElementById('thread2-lock');
+    
+    let simInProgress = false;
+
+    function resetSim() {
+        counterValueEl.textContent = '0';
+        simStatusEl.innerHTML = '&nbsp;';
+        thread1Sim.style.transform = 'translateX(0)';
+        thread2Sim.style.transform = 'translateX(0)';
+        thread1Sim.style.backgroundColor = '#d1fae5';
+        thread2Sim.style.backgroundColor = '#fef3c7';
+        mutexLockSim.style.backgroundColor = '#e5e7eb';
+        thread1Lock.innerHTML = '&nbsp;';
+        thread2Lock.innerHTML = '&nbsp;';
+    }
+
+    function runSimulation(useMutex) {
+        if (simInProgress) return;
+        simInProgress = true;
+        resetSim();
+        runNoMutexBtn.disabled = true;
+        runWithMutexBtn.disabled = true;
+
+        simStatusEl.textContent = 'Simulation running...';
+        let counter = 0;
+        const totalIncrements = 200000;
+        let incrementsDone = 0;
+
+        const interval = setInterval(() => {
+            incrementsDone += 2000;
+            
+            if (useMutex) {
+                counter = incrementsDone; 
+                const isThread1Turn = Math.random() > 0.5;
+                if (isThread1Turn) {
+                    thread1Sim.style.transform = 'translateX(50px) scale(1.1)';
+                    thread2Sim.style.transform = 'translateX(0) scale(1)';
+                    thread1Lock.textContent = 'LOCKED';
+                    thread2Lock.textContent = 'WAITING';
+                } else {
+                    thread2Sim.style.transform = 'translateX(-50px) scale(1.1)';
+                    thread1Sim.style.transform = 'translateX(0) scale(1)';
+                    thread2Lock.textContent = 'LOCKED';
+                    thread1Lock.textContent = 'WAITING';
+                }
+                 mutexLockSim.style.backgroundColor = '#f87171';
+            } else {
+                const interference = Math.random() * 500;
+                counter = incrementsDone - interference;
+                thread1Sim.style.transform = 'translateX(50px) scale(1.1)';
+                thread2Sim.style.transform = 'translateX(-50px) scale(1.1)';
+            }
+
+            counterValueEl.textContent = Math.round(counter).toLocaleString();
+
+            if (incrementsDone >= totalIncrements) {
+                clearInterval(interval);
+                const finalValue = useMutex ? totalIncrements : Math.round(counter);
+                counterValueEl.textContent = finalValue.toLocaleString();
+                if (useMutex) {
+                    simStatusEl.textContent = 'Correct result! Mutex prevented race condition.';
+                    simStatusEl.style.color = '#15803d';
+                } else {
+                    simStatusEl.textContent = `Incorrect result! Race condition occurred. Expected 200,000.`;
+                    simStatusEl.style.color = '#b91c1c';
+                }
+                simInProgress = false;
+                runNoMutexBtn.disabled = false;
+                runWithMutexBtn.disabled = false;
+                resetSimVisuals();
+            }
+        }, 50);
+    }
+    
+    function resetSimVisuals() {
+        thread1Sim.style.transform = 'translateX(0)';
+        thread2Sim.style.transform = 'translateX(0)';
+        mutexLockSim.style.backgroundColor = '#e5e7eb';
+        thread1Lock.innerHTML = '&nbsp;';
+        thread2Lock.innerHTML = '&nbsp;';
+    }
+
+    runNoMutexBtn.addEventListener('click', () => runSimulation(false));
+    runWithMutexBtn.addEventListener('click', () => runSimulation(true));
+
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Single Thread', 'Four Threads'],
+            datasets: [{
+                label: 'Time to Complete (ms)',
+                data: [1850, 520],
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.6)',
+                    'rgba(22, 163, 74, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(59, 130, 246, 1)',
+                    'rgba(22, 163, 74, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Time (milliseconds)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ` Time: ${context.parsed.y} ms`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+});
+</script>
+</body>
+</html>
