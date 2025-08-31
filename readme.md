@@ -6,7 +6,7 @@ It is built with **HTML, TailwindCSS, JavaScript, and Chart.js**.
 
 ## 🌐 Live Demo
 You can deploy this easily using:
-- [GitHub Pages](https://pages.github.com/)  
+- [Live](https://edward-012.github.io/POSIX-thread/)  
  
 
 ## 📂 Project Structure
@@ -42,4 +42,5 @@ bash
 Copy code
 # Python 3
 python -m http.server 8080
+
 Visit http://localhost:8080
